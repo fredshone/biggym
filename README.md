@@ -1,3 +1,5 @@
+[![Daily CI Build](https://github.com/fredshone/biggym/actions/workflows/daily-scheduled-ci.yml/badge.svg)](https://github.com/fredshone/biggym/actions/workflows/daily-scheduled-ci.yml)
+
 # BIGGYM
 
 Representing activity-based modeling problems as reinforcement learning problems using the [gymnasium](https://gymnasium.farama.org/) api.
