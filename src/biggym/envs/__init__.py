@@ -1,6 +1,6 @@
 from gymnasium.envs.registration import register
 
-from scheduler import SchedulingEnv
+from biggym.envs.scheduler import SchedulerEnv
 
 register(
     id="biggym/scheduler-v0",

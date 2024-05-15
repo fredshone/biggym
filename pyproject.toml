@@ -20,7 +20,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 branch = true
-source = ["src/"]
+source = ["src/biggym/"]
 
 [tool.coverage.report]
 fail_under = 50
@@ -69,13 +69,13 @@ ruff = ["--extend-ignore=E402"]
 docstring-quotes = "double"
 
 [tool.setuptools.packages.find]
-where = "src"
-include = ["biggym*"]
+where = ["src"]
+include = ["biggym"]
 
 [tool.setuptools.package-data]
 # Add file globs from the source code directory if they include non-py files that should be packaged
 # E.g. "fixtures/**/*"
-biggym = []
+biggym = ["py.typed"]
 
 [build-system]
 requires = ["setuptools"]
@@ -83,12 +83,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 classifiers = [
-        "Development Status :: 2 - Pre-Alpha",
-        "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
-        "Natural Language :: English",
-        "Programming Language :: Python :: 3",
-    ]
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+]
 
 name = "biggym"
 authors = [

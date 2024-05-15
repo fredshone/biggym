@@ -1,35 +1,47 @@
-import numpy as np
-
 import gymnasium as gym
 from gymnasium import spaces
 
-from biggym.scorers import SimpleMATSimTraceScorer
+from biggym.rewards import SimpleMATSimTraceScorer
+from biggym.sims import RandomTravelSim
 
 
 class SchedulerEnv(gym.Env):
     metadata = {}
 
-    def __init__(self, duration: int = 24, steps: int = 96, distance: float = 10.0):
+    def __init__(
+        self,
+        duration: int = 24,
+        steps: int = 96,
+        distance: float = 10.0,
+        initial: int = 0,
+    ):
         """
         Single agent environment for scheduling work activities and associated travel.
 
-        At each step, agent is either at home, at work, or traveling (by car). At each step, agent
-        chooses to travel to work or travel to home. This can result in no-op if agent is already
-        traveling or already at chosen activity.
+        Agent starts at home or work (based on 'initial'), and can travel between
+        home and work at each time step.
+
+        At each time step the agent is either at home, at work or traveling.
+        This results in a no-op if agent is already at a chosen activity or is traveling.
 
         Args:
             duration (int): total duration of simulation in hours
             steps (int): number of steps in simulation
             distance (float): distance between home and work in km
+            initial (int): initial activity idx
         """
         self.duration = duration
         self.steps = steps
         self.distance = distance
-        self.step_size = duration / steps
+        self.initial = initial
+
+        self.time_step = duration / steps
 
         self.observation_space = spaces.Dict(
             {
-                "current_state": spaces.Discrete(3),  # at home or at work or traveling
+                "current_state": spaces.Discrete(
+                    3
+                ),  # at home or at work or traveling
                 "time": spaces.Box(
                     low=0, high=duration, shape=(1,)
                 ),  # time of day (~progress)
@@ -58,15 +70,17 @@ class SchedulerEnv(gym.Env):
         return {"trace": self._trace}
 
     def reset(self):
+        self._agent_state = self.initial
         self._time = 0
-        self._trace = []  # [(label, start, end, distance)]
-        self._agent_state = 0
+        self._trace = [
+            [self._agent_state, self.time_step, 0]
+        ]  # [[label, duration, distance],]
         self._destination = None
-        self._travel_time = 0
+        self._remaining_travel_time = 0
         return self._get_obs(), self._get_info()
 
     def step(self, action):
-        self._time += self.step_size
+        self._time += self.time_step
 
         if self._agent_state == 2:  # traveling
             self._update_travel()
@@ -80,7 +94,7 @@ class SchedulerEnv(gym.Env):
             )
 
         if action == self._agent_state:  # no travel, stay at current activity
-            self._extend_trace()
+            self._extent_trace()
             return (
                 self._get_obs(),
                 self._reward(),
@@ -92,6 +106,13 @@ class SchedulerEnv(gym.Env):
         # else start travel
         self._travel_to_new_activity(action)
         self._extent_trace()
+        return (
+            self._get_obs(),
+            self._reward(),
+            self._terminated(),
+            False,
+            self._get_info(),
+        )
 
     def _reward(self):
         return self._trace_scorer.score(
@@ -102,64 +123,28 @@ class SchedulerEnv(gym.Env):
         """Move state to traveling, change destination, calc travel time."""
         self._agent_state = 2
         self._destination = action
-        self._travel_time = self._travel_sim.sample(self.distance, self._time)
+        self._remaining_travel_time = (
+            self._travel_sim.sample(self.distance, self._time) - self.time_step
+        )
 
     def _update_travel(self):
-        if self._travel_time <= 0:  # new activity started
+        if self._remaining_travel_time <= 0:  # arrive!
             self._agent_state = self._destination
-            self._extent_trace()
             self._destination = None
         else:  # still traveling
-            self._travel_time -= self.step_size
+            self._remaining_travel_time -= self.time_step
 
     def _extent_trace(self):
         if (
             self._agent_state == self._trace[-1][0]
         ):  # no change, extend current activity
-            self._trace[-1][1] += self.step_size
+            self._trace[-1][1] += self.time_step
         elif self._agent_state == 2:  # new travel
-            self._trace.append((self._destination, self.step_size, self.distance))
+            self._trace.append(
+                [self._agent_state, self.time_step, self.distance]
+            )
         else:  # new act
-            self._trace.append((self._agent_state, self.step_size, 0))
+            self._trace.append([self._agent_state, self.time_step, 0])
 
     def _terminated(self):
-        return self._time >= self.duration
-
-
-class RandomTravelSim:
-    """
-    Sample travel times based on time of day.
-
-    peak time
-            |
-           /\          |
-          /  \         | max delay
-         /    \        |
-    ____/      \___    |
-        |-------|
-          peak duration
-
-    0  6  9  12  15  18  21  24
-    """
-
-    def __init__(self) -> None:
-        self.speed = 30  # km/h
-        self.peaks = [
-            (9, 6, 0.5),
-            (12, 5, 0.25),
-            (17, 6, 0.5),
-        ]  # [(peak_time, peak_duration, max_delay)]
-
-    def _delay(self, time: float) -> float:
-        delay = 0
-        for peak_time, peak_duration, max_delay in self.peaks:
-            peak_distance = abs(time - peak_time)
-            peak_shoulder = peak_duration / 2
-            if peak_distance < peak_shoulder:
-                peak_delay = (1 - (peak_distance / peak_shoulder)) * max_delay
-                if peak_delay > delay:
-                    delay = peak_delay
-        return delay
-
-    def sample(self, distance: float, time: float) -> float:
-        return (distance / self.speed) + self._delay(time)
+        return self._time + self.time_step >= self.duration

@@ -30,7 +30,7 @@ class SimpleMATSimTraceScorer:
             "waiting": -1,
             "lateArrival": -18,
             "earlyDeparture": -10,
-            "activities": {
+            "acts": {
                 "work": {
                     "typicalDuration": 8,
                     "openingTime": 6,
@@ -49,36 +49,19 @@ class SimpleMATSimTraceScorer:
                     "marginalUtilityOfDistance": -0.001,
                     "marginalUtilityOfTravelling": -1,
                     "monetaryDistanceRate": -0.0001,
-                },
+                }
             },
         }
 
-    def wrap_trace(trace):
-        time = 0
-        wrapped = []
-        for component, duration, distance in trace:
-            wrapped.append((component, time, time + duration, duration, distance))
-            time += duration
-        if wrapped[0][0] == wrapped[-1][0]:
-            wrapped[-1] = (
-                wrapped[-1][0],
-                wrapped[-1][1],
-                wrapped[0][2],
-                wrapped[-1][3] + wrapped[0][3],
-                wrapped[-1][4] + wrapped[0][4],
-            )
-            wrapped.pop(0)
-        return wrapped
-
     def score(self, trace: list, act_map: dict):
-        score = 0
+        score = 0.0
         modes = set()
-        wrapped_trace = self.wrap_trace(trace)
+        wrapped_trace = wrap_trace(trace)
         for idx, start, end, duration, distance in wrapped_trace:
             label = act_map[idx]
             if label.startswith("act"):
                 act = label.split(":")[1]
-                score += self.score_act_duration(act, start, end)
+                score += self.score_act_duration(act, start, end, duration)
                 score += self.waiting_score(act, start, end)
                 score += self.late_arrival_score(act, start, end)
                 score += self.early_departure_score(act, start, end)
@@ -95,8 +78,8 @@ class SimpleMATSimTraceScorer:
         return sum([self.score_day_mode_use(mode) for mode in modes])
 
     def score_day_mode_use(self, mode) -> float:
-        return self.config[mode].get("dailyUtilityConstant", 0) + (
-            self.config[mode].get("dailyMonetaryConstant", 0)
+        return self.config["modes"][mode].get("dailyUtilityConstant", 0) + (
+            self.config["modes"][mode].get("dailyMonetaryConstant", 0)
             * self.config.get("mUM", 1)
         )
 
@@ -105,58 +88,48 @@ class SimpleMATSimTraceScorer:
 
     def score_travel_duration(self, mode, duration) -> float:
         return (
-            self.config["modes"][mode].get("marginalUtilityOfTravelling", 0) * duration
+            self.config["modes"][mode].get("marginalUtilityOfTravelling", 0)
+            * duration
         )
 
     def score_distance(self, mode, distance) -> float:
         mum = self.config.get("mUM", 1)
         dist_util = (
-            self.config["modes"][mode].get("marginalUtilityOfDistance", 0) * distance
+            self.config["modes"][mode].get("marginalUtilityOfDistance", 0)
+            * distance
         )
-        monetary = self.config["modes"][mode].get("monetaryDistanceRate", 0) * distance
+        monetary = (
+            self.config["modes"][mode].get("monetaryDistanceRate", 0) * distance
+        )
         return dist_util + (monetary * mum)
 
-    def score_act_duration(self, activity, start, end) -> float:
-        """
-        todo: fix for wrapping
-        """
+    def score_act_duration(self, activity, start, end, duration) -> float:
         prio = 1
         performing = self.config["performing"]
-        typical_dur = self.config[activity]["typicalDuration"]
+        typical_dur = self.config["acts"][activity]["typicalDuration"]
 
-        opening_time = self.config[activity].get("openingTime")
-        if opening_time is not None:
-            if opening_time > start:
-                actual_start_time = opening_time
-            else:
-                actual_start_time = start
-        else:
-            actual_start_time = activity.start_time
+        opening_time = self.config["acts"][activity].get("openingTime")
+        if opening_time is not None and opening_time > start:
+            duration -= opening_time - start
 
-        closing_time = self.config[activity].get("closingTime")
-        if closing_time is not None:
-            if closing_time < end:
-                actual_end_time = closing_time
-            else:
-                actual_end_time = end
-        else:
-            actual_end_time = end
-
-        duration = actual_end_time - actual_start_time
-
-        if duration < 0:
-            raise UserWarning("Negative duration")
+        closing_time = self.config["acts"][activity].get("closingTime")
+        if closing_time is not None and closing_time < end:
+            duration -= end - closing_time
 
         if duration < typical_dur / np.e:
             return (duration * np.e - typical_dur) * performing
 
-        return performing * typical_dur * (np.log(duration / typical_dur) + (1 / prio))
+        return (
+            performing
+            * typical_dur
+            * (np.log(duration / typical_dur) + (1 / prio))
+        )
 
     def waiting_score(self, activity, start, end) -> float:
         waiting = self.config.get("waiting")
         if not waiting:
             return 0.0
-        opening_time = self.config[activity].get("openingTime")
+        opening_time = self.config["acts"][activity].get("openingTime")
         if opening_time is None:
             return 0.0
         if start < opening_time:
@@ -164,19 +137,39 @@ class SimpleMATSimTraceScorer:
         return 0.0
 
     def late_arrival_score(self, activity, start, end) -> float:
-        if self.config[activity].get("latestStartTime") is not None and self.config.get(
-            "lateArrival"
-        ):
-            latest_start_time = self.config[activity.act]["latestStartTime"]
+        if self.config["acts"][activity].get(
+            "latestStartTime"
+        ) is not None and self.config.get("lateArrival"):
+            latest_start_time = self.config["acts"][activity]["latestStartTime"]
             if start > latest_start_time:
                 return self.config["lateArrival"] * (start - latest_start_time)
         return 0.0
 
     def early_departure_score(self, activity, start, end) -> float:
-        if self.config[activity].get("earliestEndTime") is not None and self.config.get(
-            "earlyDeparture"
-        ):
-            earliest_end_time = self.config[activity.act]["earliestEndTime"]
+        if self.config["acts"][activity].get(
+            "earliestEndTime"
+        ) is not None and self.config.get("earlyDeparture"):
+            earliest_end_time = self.config["acts"][activity]["earliestEndTime"]
             if end < earliest_end_time:
                 return self.config["earlyDeparture"] * (earliest_end_time - end)
         return 0.0
+
+
+def wrap_trace(trace):
+    time = 0
+    wrapped = []
+    for component, duration, distance in trace:
+        wrapped.append((component, time, time + duration, duration, distance))
+        time += duration
+    if len(wrapped) < 2:
+        return wrapped
+    if wrapped[0][0] == wrapped[-1][0]:
+        wrapped[-1] = (
+            wrapped[-1][0],
+            wrapped[-1][1],
+            wrapped[0][2],
+            wrapped[-1][3] + wrapped[0][3],
+            wrapped[-1][4] + wrapped[0][4],
+        )
+        wrapped.pop(0)
+    return wrapped
