@@ -11,11 +11,22 @@ Representing activity-based modeling problems as reinforcement learning problems
   - agent has two possible actions: travel to work, travel to home
   - reward is based on MATSim utility score
 
+- `biggym.envs.SchedulerModeEnv`: Extends above to include an additional activity "shop" and travel mode choice between car, bus and walk.
+  - agent has 6 possible states: at home, work, shop and traveling by car, bus or walking
+  - agent has 9 possible actions, travel to home, work or shop, each by either car, bus or walk
+  - reward is based on MATSim utility score
+
+### Outstanding issues
+
+- how to deal with noops
+- how to deal with multi-dim actions, eg participation and mode
+
 ### Proposed extensions
 
-- allow additional activity choices (participation)
+- allow additional activity choices (participation, location, time, mode, toll routing, charging, routing)
+- separate choice dimensions better (eg participation and mode as different actions spaces)
 - add stochastics to travel times
-- add mode choice
+- multi-day
 - create continuous choices (_ie "go to work for N hours"_)
 - inverse RL
 - electric vehicle charging

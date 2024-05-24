@@ -25,10 +25,10 @@ class SimpleMATSimTraceScorer:
         - mode constant
         """
         self.config = {
-            "mUM": 10,
-            "performing": 6,
+            "mUM": 1,
+            "performing": 10,
             "waiting": -1,
-            "lateArrival": -18,
+            "lateArrival": -10,
             "earlyDeparture": -10,
             "acts": {
                 "work": {
@@ -40,25 +40,47 @@ class SimpleMATSimTraceScorer:
                     "minimalDuration": 1,
                 },
                 "home": {"typicalDuration": 12, "minimalDuration": 1},
+                "shop": {
+                    "typicalDuration": 0.5,
+                    "openingTime": 8,
+                    "closingTime": 18,
+                    "minimalDuration": 0.5,
+                },
             },
             "modes": {
                 "car": {
-                    "constant": -10,
-                    "dailyMonetaryConstant": -1,
-                    "dailyUtilityConstant": -1,
-                    "marginalUtilityOfDistance": -0.001,
-                    "marginalUtilityOfTravelling": -1,
+                    "constant": -1,
+                    "dailyMonetaryConstant": 0,
+                    "dailyUtilityConstant": 0,
+                    "marginalUtilityOfDistance": 0,
+                    "marginalUtilityOfTravelling": 0,
                     "monetaryDistanceRate": -0.0001,
-                }
+                },
+                "bus": {
+                    "constant": -1,
+                    "dailyMonetaryConstant": -5,
+                    "dailyUtilityConstant": 0,
+                    "marginalUtilityOfDistance": 0,
+                    "marginalUtilityOfTravelling": -1,
+                    "monetaryDistanceRate": 0,
+                },
+                "walk": {
+                    "constant": 0,
+                    "dailyMonetaryConstant": 0,
+                    "dailyUtilityConstant": 0,
+                    "marginalUtilityOfDistance": -0.001,
+                    "marginalUtilityOfTravelling": 0,
+                    "monetaryDistanceRate": 0,
+                },
             },
         }
 
-    def score(self, trace: list, act_map: dict):
+    def score(self, trace: list, obs_map: dict):
         score = 0.0
         modes = set()
         wrapped_trace = wrap_trace(trace)
         for idx, start, end, duration, distance in wrapped_trace:
-            label = act_map[idx]
+            label = obs_map[idx]
             if label.startswith("act"):
                 act = label.split(":")[1]
                 score += self.score_act_duration(act, start, end, duration)
