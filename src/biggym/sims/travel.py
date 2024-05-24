@@ -14,8 +14,9 @@ class RandomTravelSim:
     0  6  9  12  15  18  21  24
     """
 
-    def __init__(self, speed=30, peaks=None) -> None:
+    def __init__(self, speed=30, peaks=None, constant=0) -> None:
         self.speed = speed  # km/h
+        self.constant = constant  # fixed delay in h
         if peaks is not None:
             self.peaks = peaks
         else:
@@ -37,4 +38,4 @@ class RandomTravelSim:
         return delay
 
     def sample(self, distance: float, time: float) -> float:
-        return (distance / self.speed) + self._delay(time)
+        return self.constant + (distance / self.speed) + self._delay(time)
