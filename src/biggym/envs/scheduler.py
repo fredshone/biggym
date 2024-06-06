@@ -127,13 +127,16 @@ class SchedulerEnv(gym.Env):
             self._get_info(),
         )
 
-    def _get_reward(self):  # TODO updated reward to give per step? test if this is better or not
-        return (self._trace_scorer.score(
-            trace=self._trace, obs_map=self._observation_space_mapping
-        )
-                # - self._trace_scorer.score(
-            # trace=self._last_trace, obs_map=self._observation_space_mapping)
-        )
+    def _get_reward(self, last=True):  # TODO updated reward to give per step? test if this is better or not
+        if last:
+            return (self._trace_scorer.score(
+                trace=self._trace, obs_map=self._observation_space_mapping
+            )
+                    # - self._trace_scorer.score(
+                # trace=self._last_trace, obs_map=self._observation_space_mapping)
+            )
+        else:
+            return 0
 
     def _travel_to_new_activity(self, action):
         """Move state to traveling, change destination, calc travel time."""

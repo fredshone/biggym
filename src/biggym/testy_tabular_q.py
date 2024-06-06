@@ -37,6 +37,13 @@ epsilon = config.EPS
 tot_steps = config.NUM_EPISODES * env.steps  # tied to env.steps
 eps_slope = 1 / (config.EPS_DECAY * tot_steps)  # leaves the last (1-decay)% of steps for full exploit, can adjust
 
+action_policy = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2,
+                 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+
 for i in range(config.NUM_EPISODES):
     step = 0
     obs, info = env.reset(seed=42)
@@ -58,15 +65,31 @@ for i in range(config.NUM_EPISODES):
             act = np.random.choice(valid_acts)
         else:
             act = np.argmax(valid_Q[obs, :])
+        # act = 2
+        # act = action_policy[step-1]
 
         nobs, reward, done, _, info = env.step(act)  # TODO theres no temporally truncated episodes right?
         nobs = state_index(nobs, step)
 
+        # below is for sparse rewards, also should change in scheduler
+        # if (step - 1) == env.steps:/
+        #     reward = env._get_reward(last=True)
+
         invalid_acts_nobs = env.get_illegal_moves(revert_state(nobs, step))
+        valid_acts_nobs = env.get_legal_moves(revert_state(nobs, step))
         valid_Q_nobs = Q.copy()
         valid_Q_nobs[:, invalid_acts_nobs] = -1e10
 
-        Q[obs, act] = Q[obs, act] + config.LR * (reward + config.GAMMA * np.max(valid_Q_nobs[nobs, :]) - Q[obs, act])
+        if np.random.uniform() < epsilon:
+            act_nobs = np.random.choice(valid_acts_nobs)
+        else:
+            act_nobs = np.argmax(valid_Q_nobs[nobs, :])
+
+        # sarsa below
+        Q[obs, act] = Q[obs, act] + config.LR * (reward + config.GAMMA * valid_Q_nobs[nobs, act_nobs] - Q[obs, act])
+
+        # q learning below
+        # Q[obs, act] = Q[obs, act] + config.LR * (reward + config.GAMMA * np.max(valid_Q_nobs[nobs, :]) - Q[obs, act])
         reward_tot += reward
         obs = nobs
 
@@ -76,6 +99,7 @@ for i in range(config.NUM_EPISODES):
         if done:
             trajectory_array = np.concatenate([trajectory_array, info["trace"][np.newaxis, :]])
             wandb.log(data={"episode_reward": reward_tot, "epsilon": epsilon})
+            # print(env._trace)
             break
 env.close()
 
