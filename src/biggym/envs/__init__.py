@@ -5,7 +5,6 @@ from biggym.envs.scheduler_modes import SchedulerModeEnv
 
 register(
     id="biggym/scheduler-v0",
-    # entry_point="gym_examples.envs:SchedulingEnv",
-    entry_point="gym_examples.envs:SchedulerEnv",
+    entry_point="gym_examples.envs:SchedulingEnv",
     max_episode_steps=1440,
 )
