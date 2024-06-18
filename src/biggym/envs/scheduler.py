@@ -6,6 +6,7 @@ from biggym.sims import RandomTravelSim
 
 import numpy as np
 import sys
+import copy
 
 
 class SchedulerEnv(gym.Env):
@@ -57,6 +58,8 @@ class SchedulerEnv(gym.Env):
         # score trace
         self._trace_scorer = SimpleMATSimTraceScorer()
 
+        self._last_reward = 0
+
     def _get_obs(self):
         return {"curr_state": self._agent_state, "time": self._time}
 
@@ -69,7 +72,7 @@ class SchedulerEnv(gym.Env):
         self._trace = [
             [self._agent_state, self.time_step, 0]
         ]  # [[label, duration, distance],]
-        self._last_trace = self._trace.copy()
+        self._last_trace = copy.deepcopy(self._trace)
         self._trace_2 = np.zeros((self.steps, 3))  # TODO hardcode 3 for the shape but lmk if theres a variable for it
         self._trace_2[0] = [self._agent_state, 0, 0]
         self._destination = None
@@ -129,7 +132,19 @@ class SchedulerEnv(gym.Env):
 
     def _get_reward(self, last=True):  # TODO updated reward to give per step? test if this is better or not
         if last:
-            return self._trace_scorer.score(trace=self._trace, obs_map=self._observation_space_mapping)
+            # print(self._trace)
+            # print(self._last_trace)
+            curr_reward = self._trace_scorer.score(trace=self._trace, obs_map=self._observation_space_mapping)
+            last_reward = self._trace_scorer.score(trace=self._last_trace, obs_map=self._observation_space_mapping)
+            delta_reward = curr_reward - last_reward
+            # print(curr_reward)
+            # print(last_reward)
+            # print(delta_reward)
+            # print("new_line")
+
+            # self._last_trace = self._trace.copy()
+
+            return delta_reward
         else:
             return 0
 
@@ -149,7 +164,7 @@ class SchedulerEnv(gym.Env):
             self._remaining_travel_time -= self.time_step
 
     def _extent_trace(self):
-        self._last_trace = self._trace.copy()
+        self._last_trace = copy.deepcopy(self._trace)
         if (
             self._agent_state == self._trace[-1][0]
         ):  # no change, extend current activity
