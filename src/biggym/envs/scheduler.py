@@ -58,10 +58,10 @@ class SchedulerEnv(gym.Env):
         self._trace_scorer = SimpleMATSimTraceScorer()
 
     def _get_obs(self):
-        return {"curr_state": self._agent_state}
+        return {"curr_state": self._agent_state, "time": self._time}
 
     def _get_info(self):
-        return {"trace": self._trace_2}  # TODO this is trace_2 even tho keeping trace for reward calcs
+        return {"trace": self._trace, "trace_2": self._trace_2}  # TODO this is trace_2 even tho keeping trace for reward calcs
 
     def reset(self, seed: int = None):  # TODO added seed as think has one in standard gym format altho not needed here
         self._agent_state = self.initial
@@ -129,12 +129,7 @@ class SchedulerEnv(gym.Env):
 
     def _get_reward(self, last=True):  # TODO updated reward to give per step? test if this is better or not
         if last:
-            return (self._trace_scorer.score(
-                trace=self._trace, obs_map=self._observation_space_mapping
-            )
-                    # - self._trace_scorer.score(
-                # trace=self._last_trace, obs_map=self._observation_space_mapping)
-            )
+            return self._trace_scorer.score(trace=self._trace, obs_map=self._observation_space_mapping)
         else:
             return 0
 

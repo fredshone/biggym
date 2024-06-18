@@ -7,7 +7,7 @@ def get_config():
     config.LR = 0.008
     config.GAMMA = 0.95
     config.EPS = 1
-    config.NUM_EPISODES = 100000  # 5000
+    config.NUM_EPISODES = 5000  # 100000  # 5000
 
     config.EPS_DECAY = 0.95
 

@@ -72,8 +72,8 @@ for i in range(config.NUM_EPISODES):
         nobs = state_index(nobs, step)
 
         # below is for sparse rewards, also should change in scheduler
-        # if (step - 1) == env.steps:/
-        #     reward = env._get_reward(last=True)
+        if (step - 1) == env.steps:
+            reward = env._get_reward(last=True)
 
         invalid_acts_nobs = env.get_illegal_moves(revert_state(nobs, step))
         valid_acts_nobs = env.get_legal_moves(revert_state(nobs, step))
