@@ -40,8 +40,8 @@ action_policy = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
 
 key = jrandom.PRNGKey(42)
 key, _key = jrandom.split(key)
-agent = PSRLAgent(env, config, _key)
-# agent = Tabular_SARSA(env, config)
+# agent = PSRLAgent(env, config, _key)
+agent = Tabular_SARSA(env, config)
 # agent = Tabular_Q(env, config)
 
 for i in range(config.NUM_EPISODES):
@@ -65,6 +65,7 @@ for i in range(config.NUM_EPISODES):
         nobs, reward, done, _, info = env.step(action)
         nobs = state_index(nobs, step)
 
+        # print(reward)
         reward_list.append(reward)
 
         # below is for sparse rewards, also should change in scheduler
@@ -84,12 +85,16 @@ for i in range(config.NUM_EPISODES):
             break
 env.close()
 
-# print(reward_tot)
+# print(info["trace"])
+print(reward_tot)
+print(env._trace_scorer.score(trace=info["trace"], obs_map=env._observation_space_mapping))
+# TODO the above two should match, they don't but they have the exact same difference between optimal and stay at home
+# TODO there is 113.204295429 reward going missing
+# TODO added a questionable fix so will see if that helps
 # print(env._trace)
 # print(env._trace_2)
 # plt.plot(reward_list)
 # plt.show()
-# sys.exit()
 
 if config.PLOT:
     # TODO added some visualisation, have done this outside env below, but if you're happy could include in the env

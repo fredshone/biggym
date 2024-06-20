@@ -58,7 +58,7 @@ class SchedulerEnv(gym.Env):
         # score trace
         self._trace_scorer = SimpleMATSimTraceScorer()
 
-        self._last_reward = 0
+        self._first_reward = False
 
     def _get_obs(self):
         return {"curr_state": self._agent_state, "time": self._time}
@@ -77,6 +77,7 @@ class SchedulerEnv(gym.Env):
         self._trace_2[0] = [self._agent_state, 0, 0]
         self._destination = None
         self._remaining_travel_time = 0
+        self._first_reward = True  # TODO added first reward check
         return self._get_obs(), self._get_info()
 
     def get_illegal_moves(self, state):
@@ -136,7 +137,11 @@ class SchedulerEnv(gym.Env):
             # print(self._last_trace)
             curr_reward = self._trace_scorer.score(trace=self._trace, obs_map=self._observation_space_mapping)
             last_reward = self._trace_scorer.score(trace=self._last_trace, obs_map=self._observation_space_mapping)
-            delta_reward = curr_reward - last_reward
+            if self._first_reward:
+                delta_reward = curr_reward  # TODO dodgy thing to get the correct end reward only?
+                self._first_reward = False
+            else:
+                delta_reward = curr_reward - last_reward
             # print(curr_reward)
             # print(last_reward)
             # print(delta_reward)
