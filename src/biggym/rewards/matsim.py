@@ -76,8 +76,8 @@ class SimpleMATSimTraceScorer:
                 },
             },
         }
-        self.min = self.min()
-        self.max = self.max()
+        self.min = self.min_score()
+        self.max = self.max_score()
 
     def normalised_score(self, trace: list, obs_map: dict):
         score = self.score(trace, obs_map)
@@ -184,7 +184,7 @@ class SimpleMATSimTraceScorer:
                 return self.config["earlyDeparture"] * (earliest_end_time - end)
         return 0.0
 
-    def min(self, distance: Optional[float] = None):
+    def min_score(self, distance: Optional[float] = None):
         # assume 24 hour period
         # assume zero benefit from activities
         # assume 2 trips of 12 hours each
@@ -204,7 +204,7 @@ class SimpleMATSimTraceScorer:
             costs.append(cost)
         return min(costs) * 2
 
-    def max(self):
+    def max_score(self):
         # assume 24 hour period
         # assume zero cost from trips
         # assume max value of performing achieved without penalty
