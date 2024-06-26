@@ -79,6 +79,10 @@ class SimpleMATSimTraceScorer:
         self.min = self.min()
         self.max = self.max()
 
+    def normalised_score(self, trace: list, obs_map: dict):
+        score = self.score(trace, obs_map)
+        return (score - self.min) / (self.max - self.min)
+
     def score(self, trace: list, obs_map: dict):
         score = 0.0
         modes = set()
