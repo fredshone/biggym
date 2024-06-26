@@ -62,3 +62,17 @@ def test_score(trace):
     scorer = SimpleMATSimTraceScorer()
     score = scorer.score(trace, mapper)
     assert isinstance(score, float)
+
+
+def test_min():
+    scorer = SimpleMATSimTraceScorer()
+    score = scorer.min()
+    assert score < 0.0
+    assert score == -36.0
+
+
+def test_max():
+    scorer = SimpleMATSimTraceScorer()
+    score = scorer.max()
+    assert score > 0.0
+    assert score == 240

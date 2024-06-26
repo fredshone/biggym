@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Optional
 
 
 class SimpleMATSimTraceScorer:
@@ -74,6 +75,32 @@ class SimpleMATSimTraceScorer:
                 },
             },
         }
+
+    def min(self, distance: Optional[float] = None):
+        # assume 24 hour period
+        # assume zero benefit from activities
+        # assume 2 trips of 12 hours each
+        mum = self.config.get("mUM", 1)
+        if distance is None:
+            distance = 100
+        costs = []
+        # find most expensive mode
+        for _, params in self.config["modes"].items():
+            cost = 0
+            cost += params.get("constant", 0)
+            cost += params.get("dailyMonetaryConstant", 0) * mum
+            cost += params.get("dailyUtilityConstant", 0)
+            cost += params.get("marginalUtilityOfDistance", 0) * distance
+            cost += params.get("marginalUtilityOfTravelling", 0) * 12
+            cost += params.get("monetaryDistanceRate", 0) * distance * mum
+            costs.append(cost)
+        return min(costs) * 2
+
+    def max(self):
+        # assume 24 hour period
+        # assume zero cost from trips
+        # assume max value of performing achieved without penalty
+        return self.config["performing"] * 24
 
     def score(self, trace: list, obs_map: dict):
         score = 0.0
