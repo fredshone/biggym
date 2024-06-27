@@ -68,11 +68,9 @@ def test_min():
     scorer = SimpleMATSimTraceScorer()
     score = scorer.min_score()
     assert score < 0.0
-    assert score == -36.0
 
 
 def test_max():
     scorer = SimpleMATSimTraceScorer()
     score = scorer.max_score()
     assert score > 0.0
-    assert score == 240

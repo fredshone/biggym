@@ -1,6 +1,7 @@
+import random
+
 import pytest
 from biggym.envs import SchedulerEnv
-import random
 
 
 @pytest.mark.parametrize(
@@ -18,7 +19,7 @@ def test_env_random_actions(duration, steps):
             obs, reward, done, _, info = env.step(action)
             if done:
                 break
-        assert step_counter == steps - 1
+        assert step_counter == steps
         assert sum([d for _, d, _ in info["trace"]]) == duration
 
 
@@ -38,7 +39,7 @@ def test_env_flipper_actions(duration, steps):
         obs, reward, done, _, info = env.step(action)
         if done:
             break
-    assert step_counter == steps - 1
+    assert step_counter == steps
     assert sum([d for _, d, _ in info["trace"]]) == duration
 
 
@@ -54,7 +55,7 @@ def test_env_stay_at_home(duration, steps):
         obs, reward, done, _, info = env.step(2)
         if done:
             break
-    assert step_counter == steps - 1
+    assert step_counter == steps
     assert sum([d for _, d, _ in info["trace"]]) == duration
     assert reward > 0
 
@@ -76,6 +77,6 @@ def test_env_work_9_5(duration, steps):
         obs, reward, done, _, info = env.step(action)
         if done:
             break
-    assert step_counter == steps - 1
+    assert step_counter == steps
     assert sum([d for _, d, _ in info["trace"]]) == duration
     assert reward > 0
