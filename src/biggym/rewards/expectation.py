@@ -1,3 +1,6 @@
+import copy
+
+
 class ScheduleExpectation:
     """
     Base class for schedule expectation given an input (assumed partially completed) trace.
@@ -9,7 +12,7 @@ class ScheduleExpectation:
 
 class Miopic(ScheduleExpectation):
 
-    def __call__(self, trace: list) -> list:
+    def __call__(self, trace: list, **kwargs) -> list:
         return trace
 
 
@@ -24,15 +27,15 @@ class ContinueDay(ScheduleExpectation):
         """
         self.duration = duration
 
-    def __call__(self, trace: list, next_act: int) -> list:
+    def __call__(self, trace: list, next_act: int, **kwargs) -> list:
         time_remaining = self.duration - sum([d for _, d, _ in trace])
         if time_remaining <= 0:
             return trace
         if trace[-1][0] == next_act:
-            new_trace = trace.copy()
+            new_trace = copy.deepcopy(trace)
             new_trace[-1][1] += time_remaining
             return new_trace
-        new_trace = trace.copy()
+        new_trace = copy.deepcopy(trace)
         new_trace.append([next_act, time_remaining, 0])
         return new_trace
 
@@ -45,6 +48,7 @@ class ReturnDay(ScheduleExpectation):
         return_act: int,
         target_duration: float,
         trip_idx: int,
+        **kwargs,
     ) -> None:
         """
         Return to a specified activity (such as home) before the end of the day if possible.

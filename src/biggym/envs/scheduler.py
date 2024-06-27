@@ -1,12 +1,12 @@
+import copy
+import sys
+
 import gymnasium as gym
+import numpy as np
 from gymnasium import spaces
 
 from biggym.rewards import SimpleMATSimTraceScorer
 from biggym.sims import RandomTravelSim
-
-import numpy as np
-import sys
-import copy
 
 
 class SchedulerEnv(gym.Env):
@@ -18,6 +18,7 @@ class SchedulerEnv(gym.Env):
         steps: int = 96,
         distance: float = 10.0,
         initial: int = 0,
+        scorer=None,
     ):
         """
         Single agent environment for scheduling work activities and associated travel.
@@ -33,6 +34,7 @@ class SchedulerEnv(gym.Env):
             steps (int): number of steps in simulation
             distance (float): distance between home and work in km
             initial (int): initial activity idx
+            scorer (object): scoring object
         """
         self.duration = duration
         self.steps = steps
@@ -48,15 +50,23 @@ class SchedulerEnv(gym.Env):
             2: "trip:car",
         }
 
-        self.action_space = spaces.Discrete(3)  # travel to home (0) or work (1) or noop (3)
-        self._action_space_mapping = {0: "travel_to_home", 1: "travel_to_work", 2: "noop"}  # TODO test just having two actions, travel or noop
+        self.action_space = spaces.Discrete(
+            3
+        )  # travel to home (0) or work (1) or noop (3)
+        self._action_space_mapping = {
+            0: "travel_to_home",
+            1: "travel_to_work",
+            2: "noop",
+        }  # TODO test just having two actions, travel or noop
         # note that these need to match obs space for activities
 
         # simulate travel time
         self._travel_sim = RandomTravelSim()
 
         # score trace
-        self._trace_scorer = SimpleMATSimTraceScorer()
+        if scorer is None:
+            scorer = SimpleMATSimTraceScorer()
+        self._trace_scorer = scorer
 
         self._first_reward = False
 
@@ -64,17 +74,23 @@ class SchedulerEnv(gym.Env):
         return {"curr_state": self._agent_state, "time": self._time}
 
     def _get_info(self):
-        return {"trace": self._trace, "trace_2": self._trace_2}  # TODO this is trace_2 even tho keeping trace for reward calcs
+        return {
+            "trace": self._trace,
+            "trace_2": self._trace_2,
+        }  # TODO this is trace_2 even tho keeping trace for reward calcs
 
-    def reset(self, seed: int = None):  # TODO added seed as think has one in standard gym format altho not needed here
+    def reset(self, seed: int = None):
+        self._trace_scorer.reset()
         self._agent_state = self.initial
         self._time = 0
         self._trace = [
-            [self._agent_state, self.time_step, 0]
+            # [self._agent_state, self.time_step, 0]
         ]  # [[label, duration, distance],]
         self._last_trace = copy.deepcopy(self._trace)
-        self._trace_2 = np.zeros((self.steps, 3))  # TODO hardcode 3 for the shape but lmk if theres a variable for it
-        self._trace_2[0] = [self._agent_state, 0, 0]
+        self._trace_2 = np.zeros(
+            (self.steps, 3)
+        )  # TODO hardcode 3 for the shape but lmk if theres a variable for it
+        # self._trace_2[0] = [self._agent_state, 0, 0]
         self._destination = None
         self._remaining_travel_time = 0
         self._first_reward = True  # TODO added first reward check
@@ -94,7 +110,9 @@ class SchedulerEnv(gym.Env):
 
         return actions
 
-    def get_legal_moves(self, state):  # TODO added in case not fully reversible, but maybe can remove
+    def get_legal_moves(
+        self, state
+    ):  # TODO added in case not fully reversible, but maybe can remove
         # if travelling then it must be noop
         if state == 2:
             actions = [2]
@@ -131,27 +149,19 @@ class SchedulerEnv(gym.Env):
             self._get_info(),
         )
 
-    def _get_reward(self, last=True):  # TODO updated reward to give per step? test if this is better or not
-        if last:
-            # print(self._trace)
-            # print(self._last_trace)
-            curr_reward = self._trace_scorer.score(trace=self._trace, obs_map=self._observation_space_mapping)
-            last_reward = self._trace_scorer.score(trace=self._last_trace, obs_map=self._observation_space_mapping)
-            if self._first_reward:
-                delta_reward = curr_reward  # TODO dodgy thing to get the correct end reward only?
-                self._first_reward = False
-            else:
-                delta_reward = curr_reward - last_reward
-            # print(curr_reward)
-            # print(last_reward)
-            # print(delta_reward)
-            # print("new_line")
+    def next_act(self):
+        if self._agent_state == 2:
+            return self._destination
+        return self._agent_state
 
-            # self._last_trace = self._trace.copy()
-
-            return delta_reward
-        else:
-            return 0
+    def _get_reward(self, last=True):
+        return self._trace_scorer(
+            trace=self._trace,
+            obs_map=self._observation_space_mapping,
+            next_act=self.next_act(),
+            trip_duration=max(self._remaining_travel_time, 0),
+            trip_distance=self.distance,
+        )
 
     def _travel_to_new_activity(self, action):
         """Move state to traveling, change destination, calc travel time."""
@@ -170,7 +180,9 @@ class SchedulerEnv(gym.Env):
 
     def _extent_trace(self):
         self._last_trace = copy.deepcopy(self._trace)
-        if (
+        if len(self._trace) == 0:
+            self._trace.append([self._agent_state, self.time_step, 0])
+        elif (
             self._agent_state == self._trace[-1][0]
         ):  # no change, extend current activity
             self._trace[-1][1] += self.time_step
@@ -184,12 +196,16 @@ class SchedulerEnv(gym.Env):
     def _extent_trace_2(self):
         # TODO updated trace so it gives every timestep, think might make easier but lmk if this ruins the functionality
         curr_time = self._time
-        curr_idx = int(self._time * self.steps / self.duration)
+        curr_idx = int(self._time * self.steps / self.duration) - 1
 
         if self._agent_state == 2:
-            self._trace_2[curr_idx] = [self._agent_state, curr_time, self.distance]
+            self._trace_2[curr_idx] = [
+                self._agent_state,
+                curr_time,
+                self.distance,
+            ]
         else:
             self._trace_2[curr_idx] = [self._agent_state, curr_time, 0]
 
     def _terminated(self):
-        return self._time + self.time_step >= self.duration
+        return self._time + self.time_step > self.duration
