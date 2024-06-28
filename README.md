@@ -39,10 +39,10 @@ Representing activity-based modeling problems as reinforcement learning problems
 
 ## Installation
 
-To install we recommend using the [mamba](https://mamba.readthedocs.io/en/latest/index.html) package manager:
-
 ### As a developer
-<!--- --8<-- [start:docs-install-dev] -->
+
+To install we recommend using the [mamba](https://mamba.readthedocs.io/en/latest/index.html) package manager.
+
 ``` shell
 git clone git@github.com:arup-group/biggym.git
 cd biggym
@@ -50,4 +50,7 @@ mamba create -n biggym --file requirements/base.txt --file requirements/dev.txt
 mamba activate biggym
 pip install --no-deps -e .
 ```
-<!--- --8<-- [end:docs-install-dev] -->
+
+### Jupyter Notebooks
+
+To run the example notebooks you will need to add a ipython kernel into the mamba environemnt: `ipython kernel install --user --name=biggym`.

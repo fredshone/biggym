@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 
 
@@ -28,8 +30,8 @@ class SimpleMATSimTraceScorer:
             "mUM": 1,
             "performing": 10,
             "waiting": -1,
-            "lateArrival": -10,
-            "earlyDeparture": -10,
+            "lateArrival": -1,
+            "earlyDeparture": -1,
             "acts": {
                 "work": {
                     "typicalDuration": 8,
@@ -39,7 +41,7 @@ class SimpleMATSimTraceScorer:
                     "earliestEndTime": 16,
                     "minimalDuration": 1,
                 },
-                "home": {"typicalDuration": 12, "minimalDuration": 1},
+                "home": {"typicalDuration": 10, "minimalDuration": 1},
                 "shop": {
                     "typicalDuration": 0.5,
                     "openingTime": 8,
@@ -75,6 +77,12 @@ class SimpleMATSimTraceScorer:
             },
         }
 
+    def __call__(self, trace: list, obs_map: dict, **kwargs) -> float:
+        return self.score(trace, obs_map)
+
+    def reset(self):
+        pass
+
     def score(self, trace: list, obs_map: dict):
         score = 0.0
         modes = set()
@@ -83,16 +91,22 @@ class SimpleMATSimTraceScorer:
             label = obs_map[idx]
             if label.startswith("act"):
                 act = label.split(":")[1]
-                score += self.score_act_duration(act, start, end, duration)
-                score += self.waiting_score(act, start, end)
-                score += self.late_arrival_score(act, start, end)
-                score += self.early_departure_score(act, start, end)
+                act_score = (
+                    self.score_act_duration(act, start, end, duration)
+                    + self.waiting_score(act, start, end)
+                    + self.late_arrival_score(act, start, end)
+                    + self.early_departure_score(act, start, end)
+                )
+                score += act_score
             elif label.startswith("trip"):
                 mode = label.split(":")[1]
                 modes.add(mode)
-                score += self.mode_constant(mode)
-                score += self.score_travel_duration(mode, duration)
-                score += self.score_distance(mode, distance)
+                mode_score = (
+                    self.mode_constant(mode)
+                    + self.score_travel_duration(mode, duration)
+                    + self.score_distance(mode, distance)
+                )
+                score += mode_score
         score += self.score_daily(modes)
         return score
 
@@ -139,13 +153,15 @@ class SimpleMATSimTraceScorer:
             duration -= end - closing_time
 
         if duration < typical_dur / np.e:
-            return (duration * np.e - typical_dur) * performing
+            score = (duration * np.e - typical_dur) * performing
+            return score
 
-        return (
+        score = (
             performing
             * typical_dur
             * (np.log(duration / typical_dur) + (1 / prio))
         )
+        return score
 
     def waiting_score(self, activity, start, end) -> float:
         waiting = self.config.get("waiting")
@@ -164,7 +180,10 @@ class SimpleMATSimTraceScorer:
         ) is not None and self.config.get("lateArrival"):
             latest_start_time = self.config["acts"][activity]["latestStartTime"]
             if start > latest_start_time:
-                return self.config["lateArrival"] * (start - latest_start_time)
+                late_score = self.config["lateArrival"] * (
+                    start - latest_start_time
+                )
+                return late_score
         return 0.0
 
     def early_departure_score(self, activity, start, end) -> float:
@@ -175,6 +194,47 @@ class SimpleMATSimTraceScorer:
             if end < earliest_end_time:
                 return self.config["earlyDeparture"] * (earliest_end_time - end)
         return 0.0
+
+    def min_score(self, distance: Optional[float] = None):
+        # assume 24 hour period
+        # assume 2 trips of 12 hours each
+        mum = self.config.get("mUM", 1)
+        if distance is None:
+            distance = 100
+        mode_costs = []
+        # find most expensive mode
+        for _, params in self.config["modes"].items():
+            cost = 0
+            cost += params.get("constant", 0)
+            cost += params.get("dailyMonetaryConstant", 0) * mum
+            cost += params.get("dailyUtilityConstant", 0)
+            cost += params.get("marginalUtilityOfDistance", 0) * distance
+            cost += params.get("marginalUtilityOfTravelling", 0) * 12
+            cost += params.get("monetaryDistanceRate", 0) * distance * mum
+            mode_costs.append(cost)
+
+        mode_cost = min(mode_costs) * 2
+
+        # find most expensive activity
+        act_costs = []
+        for act, params in self.config["acts"].items():
+            # zero duration penalty
+            act_costs.append(self.score_act_duration(act, 0, 0, 0))
+            # waiting penalty
+            act_costs.append(self.waiting_score(act, 0, 0))
+            # late arrival penalty
+            act_costs.append(self.late_arrival_score(act, 24, 0))
+            # early departure penalty
+            act_costs.append(self.early_departure_score(act, 0, 0))
+
+        act_cost = sum([c for c in act_costs if c < 0])
+        return act_cost + mode_cost
+
+    def max_score(self):
+        # assume 24 hour period
+        # assume zero cost from trips
+        # assume max value of performing achieved without penalty
+        return self.config["performing"] * 24
 
 
 def wrap_trace(trace):
