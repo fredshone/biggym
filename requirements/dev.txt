@@ -2,6 +2,7 @@ gymnasium
 numpy
 jupyter < 2
 jupyter_contrib_nbextensions
+matplotlib
 mike < 2
 mkdocs < 2
 mkdocs-click < 0.7
