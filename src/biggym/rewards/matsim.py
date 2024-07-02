@@ -39,7 +39,7 @@ class SimpleMATSimTraceScorer:
                     "closingTime": 20,
                     "latestStartTime": 9.5,
                     "earliestEndTime": 16,
-                    "minimalDuration": 1,
+                    "minimalDuration": 0,
                 },
                 "home": {"typicalDuration": 10, "minimalDuration": 1},
                 "shop": {
@@ -56,7 +56,7 @@ class SimpleMATSimTraceScorer:
                     "dailyUtilityConstant": 0,
                     "marginalUtilityOfDistance": 0,
                     "marginalUtilityOfTravelling": 0,
-                    "monetaryDistanceRate": -0.0001,
+                    "monetaryDistanceRate": -0.01,
                 },
                 "bus": {
                     "constant": -1,
