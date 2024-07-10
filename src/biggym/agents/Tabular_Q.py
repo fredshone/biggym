@@ -7,9 +7,9 @@ class Tabular_Q:
     def __init__(self, env, config):
         self.env = env
         self.config = config
-        self.epsilon = config.EPS
+        self.epsilon = config.EPS_START
         self.Q = np.zeros([env.observation_space.n, env.action_space.n])
-        self.eps_slope = 1 / (config.EPS_DECAY * (config.NUM_EPISODES * env.steps))
+        self.eps_slope = 1 / (config.EPS_DELAY * (config.NUM_EPISODES * env.steps))
 
     def observe(self, vals):
         pass
@@ -34,11 +34,6 @@ class Tabular_Q:
         valid_acts_nobs = self.env.get_legal_moves(revert_state(nobs, step))
         valid_Q_nobs = copy.deepcopy(self.Q)
         valid_Q_nobs[:, invalid_acts_nobs] = -1e10
-
-        if np.random.uniform() < self.epsilon:
-            act_nobs = np.random.choice(valid_acts_nobs)
-        else:
-            act_nobs = np.argmax(valid_Q_nobs[nobs, :])
 
         # q learning below
         self.Q[obs, act] = self.Q[obs, act] + self.config.LR * (reward + self.config.GAMMA * np.max(valid_Q_nobs[nobs, :]) - self.Q[obs, act])

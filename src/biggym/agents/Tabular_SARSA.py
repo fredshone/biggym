@@ -9,7 +9,7 @@ class Tabular_SARSA:
         self.config = config
         self.epsilon = config.EPS
         self.Q = np.zeros([env.observation_space.n, env.action_space.n])
-        self.eps_slope = 1 / (config.EPS_DECAY * (config.NUM_EPISODES * env.steps))
+        self.eps_slope = 1 / (config.EPS_DELAY * (config.NUM_EPISODES * env.steps))
 
     def observe(self, vals):
         pass

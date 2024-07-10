@@ -5,14 +5,15 @@ import numpy as np
 import sys
 from config import get_config
 import wandb
-from agents.PSRL import PSRLAgent
-from agents.Tabular_Q import Tabular_Q
-from agents.Tabular_SARSA import Tabular_SARSA
+from agents import PSRLAgent, Tabular_Q, Tabular_SARSA, D3QN, R2D2, EpisodeBuffer, EpisodeMemory
 import jax.random as jrandom
-import jax.numpy as jnp
+import jax.numpy as jnp  # TODO sorry will write in pytorch
 import jax
 import os
-from agents.utils import state_index
+from agents.utils import state_index, revert_state, update_tot_state
+import utils
+import torch
+import torch.nn.functional as F
 
 
 # TODO dirichlet needs x64 it seems? setting x64 allowed below
@@ -41,10 +42,26 @@ action_policy = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
 key = jrandom.PRNGKey(42)
 key, _key = jrandom.split(key)
 # agent = PSRLAgent(env, config, _key)
-agent = Tabular_SARSA(env, config)
+# agent = Tabular_SARSA(env, config)
 # agent = Tabular_Q(env, config)
+agent = D3QN(env, config)  # , rho=0.01)
+# agent = R2D2(env, config)
 
-for i in range(config.NUM_EPISODES):
+if str(agent) == "D3QN" or str(agent) == "R2D2":  # TODO think it needs own replay buffer vibe
+    alpha = 1.0
+    decay_number = 10
+    max_frames = config.NUM_EPISODES * env.steps
+    agent.step_decay = int(max_frames / (decay_number + 1))
+    beta = 0.7389
+    memory = utils.PER_IS_ReplayBuffer(config.BUFFER_SIZE, alpha=alpha, state_dim=3)
+
+if str(agent) == "R2D2":
+    episode_memory = EpisodeMemory(random_update=config.RANDOM_UPDATE,
+                                   max_epi_num=100, max_epi_len=env.steps,
+                                   batch_size=config.EP_BATCH_SIZE,
+                                   lookup_step=config.LOOKUP_STEP)
+
+for episode in range(config.NUM_EPISODES):
     step = 0
     obs, info = env.reset(seed=42)
     obs = state_index(obs, step)
@@ -53,35 +70,79 @@ for i in range(config.NUM_EPISODES):
 
     reward_list = []
 
+    tot_obs = torch.zeros((env.steps))
+    tot_obs = update_tot_state(tot_obs, obs, step)
+
+    if str(agent) == "R2D2":
+        episode_record = EpisodeBuffer()
+        h_s, c_s = agent.init_hidden_state(training=False)
+
     while True:
         step += 1
 
-        # BAYESIAN EXPLORATION BABYYYY  - with PSRL onlY
         key, _key = jrandom.split(key)
-        action = agent.act(obs, step, _key)
+        if str(agent) == "R2D2":
+            action, h_s, c_s = agent.act(obs, step, h_s, c_s)
+        elif str(agent) == "D3QN":
+            # action = agent.act(tot_obs, step, _key)
+            action = agent.act(obs, step, _key)
+        else:
+            action = agent.act(obs, step, _key)
         # action = 2
         # action = action_policy[step-1]
 
-        nobs, reward, done, _, info = env.step(action)
+        nobs, reward, done, _, info = env.step(action)  # TODO check it does done when it is meant to
         nobs = state_index(nobs, step)
-
-        # print(reward)
+        tot_nobs = update_tot_state(tot_obs.clone(), nobs, step)
         reward_list.append(reward)
 
         # below is for sparse rewards, also should change in scheduler
         # if (step - 1) == env.steps:
         #     reward = env._get_reward(last=True)
 
-        agent.observe((obs, action, reward, nobs))
-        key, _key = jrandom.split(key)
-        agent.update(obs, action, reward, nobs, step, _key)
+        if str(agent) == "D3QN" or str(agent) == "R2D2":
+            epsilon = agent.epsilon(agent.t)
+            dqn_obs = revert_state(obs, step-1)
+            dqn_nobs = revert_state(nobs, step)
+            invalid_acts = env.get_illegal_moves(dqn_nobs)
+            next_move_index = torch.zeros(3)
+            next_move_index[invalid_acts] = -1e10
+            dqn_obs = F.one_hot(torch.tensor(dqn_obs), num_classes=3)
+            dqn_nobs = F.one_hot(torch.tensor(dqn_nobs), num_classes=3)
+            if str(agent) == "D3QN":
+                memory.push(dqn_obs, action, next_move_index, reward, dqn_nobs, done)
+                if len(memory) > config.BATCH_SIZE:
+                    # if we are using prioritised experience replay buffer with importance sampling
+                    beta = 1 - (1 - beta) * np.exp(-0.05 * episode)
+                    sample = memory.sample(config.BATCH_SIZE, beta)
+                    loss, tds = agent.update(
+                        [sample['obs'], sample['action'], sample["next_state_indices"], sample['reward'], sample['next_obs'], sample['done']],
+                        weights=sample['weights']
+                    )
+                    new_tds = np.abs(tds.cpu().numpy()) + 1e-6
+                    memory.update_priorities(sample['indexes'], new_tds)
+            else:
+                episode_record.put([dqn_obs, action, next_move_index, reward, dqn_nobs, done])
+                if len(episode_memory) >= config.MIN_EP_NUM:
+                    agent.update(episode_memory)
+        elif str(agent) == "PSRL":
+            agent.observe((obs, action, reward, nobs))
+            key, _key = jrandom.split(key)
+            agent.update(obs, action, reward, nobs, step, _key)
+        else:
+            agent.update(obs, action, reward, nobs, step, _key)
+            epsilon = agent.epsilon
 
         reward_tot += reward
         obs = nobs
+        tot_obs = tot_nobs.clone()  # TODO check this works
 
         if done:
             trajectory_array = np.concatenate([trajectory_array, info["trace_2"][np.newaxis, :]])
-            wandb.log(data={"episode_reward": reward_tot, "epsilon": agent.epsilon})
+            wandb.log(data={"episode_reward": reward_tot, "epsilon": epsilon})
+            if str(agent) == "R2D2":
+                episode_memory.put(episode_record)
+            sys.exit()
             break
 env.close()
 

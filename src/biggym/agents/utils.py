@@ -1,4 +1,6 @@
 import numpy as np
+import torch
+import torch.nn.functional as F
 
 
 def revert_state(state_num: int, step: int) -> np.array:
@@ -8,6 +10,17 @@ def state_index(obs: np.array, step: int) -> int:
     # takes in the int of 0,1,2 from the state and then converts to extended temporal state idk if this is right
     state_num = int(obs["curr_state"])
     return state_num + (3 * step)
+
+def update_tot_state(tot_obs: np.array, curr_obs: np.array, step: int) -> np.array:
+    state = revert_state(curr_obs, step)
+    # state = F.one_hot(torch.tensor(state), num_classes=3)
+    # state = torch.where(state == 0, 0.5, state)
+    # idx = step * state.shape[0]
+    # tot_obs[idx:idx + state.shape[0]] = state
+
+    tot_obs[step] = state + 1
+
+    return tot_obs
 
 def solve_tabular_mdp(*args, **kwargs):
     return value_iteration(*args, **kwargs)

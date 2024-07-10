@@ -40,6 +40,9 @@ class PSRLAgent:
 
         self.update_policy(key)
 
+    def __str__(self):
+        return "PSRL"
+
     def reset(self, state):
         pass
 
